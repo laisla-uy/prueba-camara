@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Prueba de cámara · Entregas La Isla</title>
+<style>
+:root{--ink:#121417;--paper:#f3f4f2;--surface:#fff;--line:#d9dcd8;--muted:#5c625f;--accent:#0b5c78;--ok:#1f7a45;--ok-soft:#e3f2e8;--bad:#b3261e;--bad-soft:#fbe5e3}
+@media (prefers-color-scheme:dark){:root{--ink:#eceeec;--paper:#121416;--surface:#1b1e21;--line:#30353a;--muted:#a3aaa6;--accent:#5fb3d0;--ok:#5cc489;--ok-soft:#14301f;--bad:#f08a80;--bad-soft:#3a1714;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#0d0e10;color:#fff;padding:14px max(16px,env(safe-area-inset-left)) 14px max(16px,env(safe-area-inset-right));font-weight:700;letter-spacing:.06em}
+main{max-width:480px;margin:0 auto;padding:18px 16px 32px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:26px;line-height:1.15;margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.btn{appearance:none;border:0;border-radius:10px;min-height:56px;width:100%;font:600 18px system-ui,sans-serif;cursor:pointer}
+.primary{background:var(--accent);color:#fff}
+.ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+#reader{width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.big{font:600 30px ui-monospace,"Roboto Mono",monospace;letter-spacing:.03em}
+.ok{background:var(--ok-soft);border-color:var(--ok)}
+.bad{background:var(--bad-soft);border-color:var(--bad)}
+ol{margin:0;padding-left:20px}
+li{margin:4px 0}
+.log{font:14px ui-monospace,monospace;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>LA ISLA · PRUEBA DE CÁMARA</header>
+<main>
+  <h1>¿Este celular lee bien las comandas?</h1>
+  <ol class="muted">
+    <li>Tocá <b>Iniciar cámara</b> y permití el acceso.</li>
+    <li>Apuntá al código de barras de una comanda, de lado a lado del recuadro.</li>
+    <li>Anotá cuánto tardó y si el número coincide con el de la comanda.</li>
+  </ol>
+  <button class="btn primary" id="start" type="button">Iniciar cámara</button>
+  <button class="btn ghost" id="stop" type="button" hidden>Detener</button>
+  <div id="reader"></div>
+  <div class="card" id="result" hidden>
+    <span class="label">Leído</span>
+    <span class="big" id="code"></span>
+    <span id="detail" class="muted"></span>
+  </div>
+  <div class="card">
+    <span class="label">Este celular</span>
+    <span id="device" class="muted"></span>
+    <span id="engine" class="muted"></span>
+  </div>
+  <div class="card"><span class="label">Lecturas</span><div class="log" id="log">Todavía ninguna.</div></div>
+  <p class="muted" style="font-size:14px">Página de prueba interna de La Isla. No guarda ni envía nada: todo queda en este celular.</p>
+</main>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function(){
+  var startBtn=document.getElementById('start'), stopBtn=document.getElementById('stop');
+  var res=document.getElementById('result'), codeEl=document.getElementById('code'), detail=document.getElementById('detail');
+  var logEl=document.getElementById('log'), reads=[];
+  var nativo='BarcodeDetector' in window;
+  document.getElementById('device').textContent=navigator.userAgent.replace(/\) .*$/,')');
+  document.getElementById('engine').textContent=nativo?'Usa el lector nativo del celular (más rápido).':'Usa el lector por software.';
+  var scanner=null, t0=0, last='', lastAt=0;
+  var F=window.Html5QrcodeSupportedFormats;
+  function onRead(text){
+    var now=Date.now(); if(text===last && now-lastAt<2500) return; last=text; lastAt=now;
+    var ms=now-t0, pedido=text.replace(/\*/g,'').replace(/\D/g,'');
+    codeEl.textContent=pedido||text;
+    detail.textContent=(pedido?'Pedido '+pedido+' · ':'')+'tardó '+(ms/1000).toFixed(1)+' s desde que se apuntó';
+    res.hidden=false; res.className='card ok';
+    if(navigator.vibrate) navigator.vibrate(120);
+    reads.unshift(new Date().toLocaleTimeString('es-UY',{hour12:false})+'  '+(pedido||text)+'  ('+(ms/1000).toFixed(1)+' s)');
+    logEl.textContent=reads.slice(0,10).join('\n'); logEl.style.whiteSpace='pre-line';
+    t0=Date.now();
+  }
+  startBtn.addEventListener('click',function(){
+    if(!window.Html5Qrcode){ res.hidden=false; res.className='card bad'; codeEl.textContent='Sin lector'; detail.textContent='No cargó el lector. Revisá la conexión a internet y recargá la página.'; return; }
+    scanner=new Html5Qrcode('reader',{formatsToSupport:[F.CODE_39,F.CODE_128,F.QR_CODE],experimentalFeatures:{useBarCodeDetectorIfSupported:true},verbose:false});
+    scanner.start({facingMode:'environment'},{fps:10,qrbox:function(w,h){return {width:Math.floor(w*0.9),height:Math.floor(Math.min(h*0.5,w*0.5))};}},onRead,function(){})
+      .then(function(){ t0=Date.now(); startBtn.hidden=true; stopBtn.hidden=false; })
+      .catch(function(err){ res.hidden=false; res.className='card bad'; codeEl.textContent='No abrió la cámara'; detail.textContent='Permití el acceso a la cámara en el navegador y volvé a intentar. Detalle: '+err; });
+  });
+  stopBtn.addEventListener('click',function(){ if(scanner) scanner.stop().then(function(){ scanner.clear(); startBtn.hidden=false; stopBtn.hidden=true; }); });
+})();
+</script>
+</body>
+</html>
